@@ -72,7 +72,7 @@ namespace ProjektNeveBackend
             builder.Services.AddCors(c => { c.AddPolicy("AllowOrigin", options => options.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()); });
 
             var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING");
-            builder.Services.AddDbContext<HalakDbContext>(options => options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
+            builder.Services.AddDbContext<BackendAlapContext>(options => options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
             // Add services to the container.
             builder.Services.AddControllers();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
