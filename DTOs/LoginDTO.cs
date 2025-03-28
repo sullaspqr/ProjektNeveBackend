@@ -2,8 +2,8 @@
 {
     public class LoginDTO
     {
-        public string LoginName { get; set; }
+        public string? LoginName { get; set; }
 
-        public string TmpHash { get; set; }
+        public string? TmpHash { get; set; }
     }
 }
