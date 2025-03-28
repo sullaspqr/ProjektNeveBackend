@@ -1,8 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Pomelo.EntityFrameworkCore.MySql;
 using ProjektNeveBackend.Models;
+using Microsoft.Extensions.Hosting;
 using System.Net.Mail;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.Cors;
 
 namespace ProjektNeveBackend
 {
@@ -68,8 +71,16 @@ namespace ProjektNeveBackend
         {
          //   LoggedInUsers["token"] = new User { Id = 1, Jogosultsag = 9 };
             var builder = WebApplication.CreateBuilder(args);
-
-            builder.Services.AddCors(c => { c.AddPolicy("AllowOrigin", options => options.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()); });
+            builder.Services.AddCors(options =>
+            {
+                    options.AddPolicy("AllowAllOrigins",
+                        policy =>
+                {
+                    policy.AllowAnyOrigin()
+                          .AllowAnyMethod()
+                          .AllowAnyHeader();
+                });
+            });
 
             var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING");
             builder.Services.AddDbContext<BackendAlapContext>(options => options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
@@ -78,8 +89,9 @@ namespace ProjektNeveBackend
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
+           
             var app = builder.Build();
-            app.UseCors(options => options.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+            app.UseCors("AllowAllOrigins");
             // Configure the HTTP request pipeline.
             app.UseSwagger();
             app.UseSwaggerUI();
