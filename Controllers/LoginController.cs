@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProjektNeveBackend.DTOs;
@@ -10,56 +10,66 @@ namespace ProjektNeveBackend.Controllers
     [ApiController]
     public class LoginController : ControllerBase
     {
+        private readonly BackendAlapContext _context;
+        
+        public LoginController(BackendAlapContext context)
+        {
+            _context = context;
+        }
+
         [HttpPost("GetSalt/{felhasznaloNev}")]
         public async Task<IActionResult> GetSalt(string felhasznaloNev)
         {
-            /*string password = "a";
-            string SALT=Program.GenerateSalt();
-            string tHASH=Program.CreateSHA256(password+SALT);
-            string HASH=Program.CreateSHA256(tHASH);*/
-            using (var cx = new BackendAlapContext())
+            try
             {
-                try
-                {
-                    User response = await cx.Users.FirstOrDefaultAsync(f => f.FelhasznaloNev == felhasznaloNev);
-                    return response == null ? BadRequest("Hiba") : Ok(response.Salt);
-                }
-                catch
-                (Exception ex)
-                {
-                    return BadRequest(ex.Message);
-                }
+                User response = await _context.Users
+                    .FirstOrDefaultAsync(f => f.FelhasznaloNev == felhasznaloNev);
+                    
+                return response == null ? BadRequest("Hiba") : Ok(response.Salt);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
             }
         }
 
         [HttpPost]
-
         public async Task<IActionResult> Login(LoginDTO loginDTO)
         {
-            using (var cx = new BackendAlapContext())
+            try
             {
-                try
+                string Hash = Program.CreateSHA256(loginDTO.TmpHash);
+                User loggedUser = await _context.Users
+                    .FirstOrDefaultAsync(f => f.FelhasznaloNev == loginDTO.LoginName && f.Hash == Hash);
+                    
+                if (loggedUser != null && loggedUser.Aktiv == 1)
                 {
-                    string Hash = Program.CreateSHA256(loginDTO.TmpHash);
-                    User loggedUser = await cx.Users.FirstOrDefaultAsync(f => f.FelhasznaloNev == loginDTO.LoginName && f.Hash == Hash);
-                    if (loggedUser != null && loggedUser.Aktiv==1)
+                    string token = Guid.NewGuid().ToString();
+                    lock (Program.LoggedInUsers)
                     {
-                        string token = Guid.NewGuid().ToString();
-                        lock (Program.LoggedInUsers)
-                        {
-                            Program.LoggedInUsers.Add(token, loggedUser);
-                        }
-                        return Ok(new LoggedUser { Name = loggedUser.TeljesNev, Email = loggedUser.Email, Permission = loggedUser.Jogosultsag, ProfilePicturePath = loggedUser.ProfilKepUtvonal, Token = token });
+                        Program.LoggedInUsers.Add(token, loggedUser);
                     }
-                    else
-                    {
-                        return BadRequest("Hibás név vagy jelszó/inaktív felhasználó!");
-                    }
+                    return Ok(new LoggedUser { 
+                        Name = loggedUser.TeljesNev, 
+                        Email = loggedUser.Email, 
+                        Permission = loggedUser.Jogosultsag, 
+                        ProfilePicturePath = loggedUser.ProfilKepUtvonal, 
+                        Token = token 
+                    });
                 }
-                catch (Exception ex)
+                else
                 {
-                    return BadRequest(new LoggedUser { Permission = -1, Name = ex.Message, ProfilePicturePath = "", Email = "" });
+                    return BadRequest("Hibás név vagy jelszó/inaktív felhasználó!");
                 }
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new LoggedUser { 
+                    Permission = -1, 
+                    Name = ex.Message, 
+                    ProfilePicturePath = "", 
+                    Email = "" 
+                });
             }
         }
     }
