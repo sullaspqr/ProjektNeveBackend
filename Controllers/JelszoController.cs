@@ -1,6 +1,7 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using ProjektNeveBackend.Models;
+using ProjektNeveBackend.Services; // Assuming you'll move helper methods here
 
 namespace ProjektNeveBackend.Controllers
 {
@@ -8,33 +9,43 @@ namespace ProjektNeveBackend.Controllers
     [ApiController]
     public class JelszoController : ControllerBase
     {
-        [HttpPost("{loginName},{oldPassword},{newPassword}")]
+        private readonly BackendAlapContext _context;
+        private readonly IPasswordService _passwordService;
+        private readonly IEmailService _emailService;
 
+        public JelszoController(
+            BackendAlapContext context,
+            IPasswordService passwordService,
+            IEmailService emailService)
+        {
+            _context = context;
+            _passwordService = passwordService;
+            _emailService = emailService;
+        }
+
+        [HttpPost("{loginName},{oldPassword},{newPassword}")]
         public async Task<IActionResult> JelszoMosositas(string loginName, string oldPassword, string newPassword)
         {
             try
             {
-                using (var context = new BackendAlapContext())
+                User? user = _context.Users.FirstOrDefault(f => f.FelhasznaloNev == loginName);
+                if (user != null)
                 {
-                    User? user = context.Users.FirstOrDefault(f => f.FelhasznaloNev == loginName);
-                    if (user != null)
+                    if (_passwordService.VerifyPassword(oldPassword, user.Hash))
                     {
-                        if (Program.CreateSHA256(oldPassword) == user.Hash)
-                        {
-                            user.Hash = Program.CreateSHA256(newPassword);
-                            context.Users.Update(user);
-                            await context.SaveChangesAsync();
-                            return Ok("A jelszó módosítása sikeresen megtörtént.");
-                        }
-                        else
-                        {
-                            return StatusCode(201, "Hibás a régi jelszó!");
-                        }
+                        user.Hash = _passwordService.HashPassword(newPassword);
+                        _context.Users.Update(user);
+                        await _context.SaveChangesAsync();
+                        return Ok("A jelszó módosítása sikeresen megtörtént.");
                     }
                     else
                     {
-                        return BadRequest("Nincs ilyen nevű felhasználó!");
+                        return StatusCode(201, "Hibás a régi jelszó!");
                     }
+                }
+                else
+                {
+                    return BadRequest("Nincs ilyen nevű felhasználó!");
                 }
             }
             catch (Exception ex)
@@ -46,32 +57,28 @@ namespace ProjektNeveBackend.Controllers
         [HttpPost("{Email}")]
         public async Task<IActionResult> ElfelejtettJelszo(string Email)
         {
-            using (var context = new BackendAlapContext())
+            try
             {
-                try
+                var user = _context.Users.FirstOrDefault(f => f.Email == Email);
+                if (user != null)
                 {
-                    var user = context.Users.FirstOrDefault(f => f.Email == Email);
-                    if (user != null)
-                    {
-                        string jelszo = Program.GenerateSalt().Substring(0, 16);
-                        user.Hash = Program.CreateSHA256(Program.CreateSHA256(jelszo + user.Salt));
-                        context.Users.Update(user);
-                        await context.SaveChangesAsync();
-                        Program.SendEmail(user.Email, "Elfelejtett jelszó", "Az új jelszava: " + jelszo);
-                        return Ok("E-mail küldése megtörtént.");
-                    }
-                    else
-                    {
-                        return StatusCode(210, "Nincs ilyen e-Mail cím!");
-                    }
+                    string jelszo = _passwordService.GenerateRandomPassword(16);
+                    user.Hash = _passwordService.HashPasswordWithSalt(jelszo, user.Salt);
+                    _context.Users.Update(user);
+                    await _context.SaveChangesAsync();
+                    
+                    await _emailService.SendEmailAsync(user.Email, "Elfelejtett jelszó", $"Az új jelszava: {jelszo}");
+                    return Ok("E-mail küldése megtörtént.");
                 }
-                catch (Exception ex)
+                else
                 {
-                    return StatusCode(211, ex.Message);
+                    return StatusCode(210, "Nincs ilyen e-Mail cím!");
                 }
             }
+            catch (Exception ex)
+            {
+                return StatusCode(211, ex.Message);
+            }
         }
-
-
     }
 }
