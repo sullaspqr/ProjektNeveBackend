@@ -2,10 +2,10 @@ using Microsoft.EntityFrameworkCore;
 using Pomelo.EntityFrameworkCore.MySql;
 using ProjektNeveBackend.Models;
 using Microsoft.Extensions.Hosting;
-using System.Net.Mail;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Cors;
+using ProjektNeveBackend.Services;
 
 namespace ProjektNeveBackend
 {
@@ -43,30 +43,6 @@ namespace ProjektNeveBackend
                 return sBuilder.ToString();
             }
         }
-
-        public static async Task SendEmail(string mailAddressTo, string subject, string body)
-        {
-            MailMessage mail = new MailMessage();
-            SmtpClient SmtpServer = new SmtpClient("smtp.gmail.com");
-            mail.From = new MailAddress("backend.registry@kkszki.hu");
-            mail.To.Add(mailAddressTo);
-            mail.Subject = subject;
-            mail.Body = body;
-
-            /*System.Net.Mail.Attachment attachment;
-            attachment = new System.Net.Mail.Attachment("");
-            mail.Attachments.Add(attachment);*/
-
-            SmtpServer.Port = 587;
-            SmtpServer.Credentials = new System.Net.NetworkCredential("backend.registry@kkszki.hu", "BackEnd-2022");
-
-            SmtpServer.EnableSsl = true;
-
-            await SmtpServer.SendMailAsync(mail);
-
-        }
-
-
         public static void Main(string[] args)
         {
          //   LoggedInUsers["token"] = new User { Id = 1, Jogosultsag = 9 };
