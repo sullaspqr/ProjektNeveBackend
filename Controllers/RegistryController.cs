@@ -1,9 +1,8 @@
-﻿using Microsoft.AspNetCore.DataProtection.XmlEncryption;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProjektNeveBackend.Models;
-using System.Configuration;
+using System.Threading.Tasks;
 
 namespace ProjektNeveBackend.Controllers
 {
@@ -11,66 +10,77 @@ namespace ProjektNeveBackend.Controllers
     [ApiController]
     public class RegistryController : ControllerBase
     {
-        [HttpPost]
+        private readonly BackendAlapContext _context;
+        private readonly IEmailService _emailService;
 
+        public RegistryController(BackendAlapContext context, IEmailService emailService)
+        {
+            _context = context;
+            _emailService = emailService;
+        }
+
+        [HttpPost]
         public async Task<IActionResult> Registry(User user)
         {
-            using (var cx=new BackendAlapContext())
+            try
             {
-                try
+                if (await _context.Users.AnyAsync(f => f.FelhasznaloNev == user.FelhasznaloNev))
                 {
-                    if (cx.Users.FirstOrDefault(f=>f.FelhasznaloNev==user.FelhasznaloNev) != null) 
-                    {
-                        return Ok("Már létezik ilyen felhasználónév!");
-                    }
-                    if (cx.Users.FirstOrDefault(f => f.Email == user.Email) != null)
-                    {
-                        return Ok("Ezzel az e-mail címmel már regisztráltak!");
-                    }
-                    user.Jogosultsag = 1;
-                    user.Aktiv = 0;
-                    user.Hash = Program.CreateSHA256(user.Hash);
-                    await cx.Users.AddAsync(user);
-                    await cx.SaveChangesAsync();
+                    return Conflict("Már létezik ilyen felhasználónév!");
+                }
 
-                    Program.SendEmail(user.Email, "Regisztráció", $"https://localhost:7225/api/Registry?felhasznaloNev={user.FelhasznaloNev}&email={user.Email}");
-                    
-                    return Ok("Sikeres regisztráció. Fejezze be a regisztrációját az e-mail címére küldött link segítségével!");
-                }
-                catch (Exception ex)
+                if (await _context.Users.AnyAsync(f => f.Email == user.Email))
                 {
-                    return Ok(ex.Message);
+                    return Conflict("Ezzel az e-mail címmel már regisztráltak!");
                 }
+
+                user.Jogosultsag = 1;
+                user.Aktiv = 0;
+                user.Hash = Program.CreateSHA256(user.Hash);
+
+                await _context.Users.AddAsync(user);
+                await _context.SaveChangesAsync();
+
+                var emailSubject = "Regisztráció";
+                var emailBody = $"https://localhost:7225/api/Registry?felhasznaloNev={user.FelhasznaloNev}&email={user.Email}";
+                await _emailService.SendEmailAsync(user.Email, emailSubject, emailBody);
+
+                return Ok("Sikeres regisztráció. Fejezze be a regisztrációját az e-mail címére küldött link segítségével!");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
             }
         }
 
         [HttpGet]
-
-        public async Task<IActionResult> EndOfTheRegistry(string felhasznaloNev,string email)
+        public async Task<IActionResult> EndOfTheRegistry(string felhasznaloNev, string email)
         {
-            using (var cx=new BackendAlapContext())
+            try
             {
-                try
-                {
-                    User user = await cx.Users.FirstOrDefaultAsync(f => f.FelhasznaloNev == felhasznaloNev && f.Email == email);
-                    if (user == null)
-                    {
-                        return Ok("Sikertelen a regisztráció befejezése!");
-                    }
-                    else
-                    {
-                        user.Aktiv = 1;
-                        cx.Users.Update(user);
-                        await cx.SaveChangesAsync();
-                        return Ok("A regisztráció befejezése sikeresen megtörtént.");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    return BadRequest(ex.Message);
-                }
-            } 
-        }
+                var user = await _context.Users
+                    .FirstOrDefaultAsync(f => f.FelhasznaloNev == felhasznaloNev && f.Email == email);
 
+                if (user == null)
+                {
+                    return NotFound("Sikertelen a regisztráció befejezése!");
+                }
+
+                user.Aktiv = 1;
+                _context.Users.Update(user);
+                await _context.SaveChangesAsync();
+
+                return Ok("A regisztráció befejezése sikeresen megtörtént.");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
+            }
+        }
+    }
+
+    public interface IEmailService
+    {
+        Task SendEmailAsync(string email, string subject, string body);
     }
 }
