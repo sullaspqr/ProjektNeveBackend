@@ -66,6 +66,8 @@ namespace ProjektNeveBackend
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
             builder.Services.AddTransient<IEmailService, EmailService>();
+            builder.Services.AddScoped<IPasswordService, PasswordService>();
+            builder.Services.AddScoped<IEmailService, EmailService>();
             var app = builder.Build();
             app.UseCors("AllowAllOrigins");
             // Configure the HTTP request pipeline.
